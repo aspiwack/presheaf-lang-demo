@@ -1,0 +1,40 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.39.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           presheaf-lang-demo
+version:        0.1.0.0
+author:         Arnaud Spiwack
+maintainer:     Arnaud Spiwack
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+library
+  exposed-modules:
+      Arith
+      Lambda
+  other-modules:
+      Paths_presheaf_lang_demo
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
+  build-depends:
+      base >=4.7 && <5
+    , containers
+  default-language: GHC2021
+
+executable presheaf-lang-demo
+  main-is: Main.hs
+  other-modules:
+      Paths_presheaf_lang_demo
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , presheaf-lang-demo
+  default-language: GHC2021

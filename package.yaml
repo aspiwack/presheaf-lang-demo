@@ -1,0 +1,21 @@
+name: presheaf-lang-demo
+version: 0.1.0.0
+author: "Arnaud Spiwack"
+
+language: GHC2021
+
+dependencies:
+- base >= 4.7 && < 5
+- containers
+
+library:
+  source-dirs: src
+
+executables:
+  presheaf-lang-demo:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+    - presheaf-lang-demo
+
+ghc-options: "-Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances"

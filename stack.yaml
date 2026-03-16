@@ -1,0 +1,9 @@
+resolver: lts-24.34
+
+packages:
+- .
+
+## Ancilla
+
+# Deactivate Nix warning (since we don't use the Nix integration directly)
+notify-if-nix-on-path: false
