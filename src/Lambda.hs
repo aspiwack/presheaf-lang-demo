@@ -306,7 +306,7 @@ interpArith op e1 e2 =
   case (interp e1, interp e2) of
     (MkY a1, MkY a2) -> MkY (op a1 a2)
 
-lower :: (forall v. Expr v ('TArr 'TInt 'TInt)) -> Arith.Expr 'Arith.TInt 'Arith.TInt
+lower :: Expr (Fiber Arith.TInt) ('TArr 'TInt 'TInt) -> Arith.Expr 'Arith.TInt 'Arith.TInt
 lower e = case interp e of
   MkPFun f -> case f (Arith.Id) (MkY (Arith.Id)) of
     MkY e' -> e'

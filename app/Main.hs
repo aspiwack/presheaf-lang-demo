@@ -1,4 +1,33 @@
+{-# LANGUAGE GADTs #-}
+
 module Main where
 
+import Arith qualified
+import Parser (compileIntInt)
+import System.Environment (getArgs)
+import System.Exit (exitFailure)
+
 main :: IO ()
-main = putStrLn "Hello, World!"
+main = do
+  args <- getArgs
+  case args of
+    [nStr, exprStr] -> do
+      n <- case reads nStr of
+        [(n', "")] -> pure (n' :: Int)
+        _ -> do
+          putStrLn "Error: first argument must be an integer"
+          exitFailure
+      case compileIntInt exprStr of
+        Left err -> do
+          putStrLn err
+          exitFailure
+        Right arithExpr ->
+          case Arith.eval (Arith.VInt n) arithExpr of
+            Left Arith.DivisionByZero -> do
+              putStrLn "Error: division by zero"
+              exitFailure
+            Right (Arith.VInt result) ->
+              print result
+    _ -> do
+      putStrLn "Usage: presheaf-lang-demo <number> '<expression>'"
+      exitFailure

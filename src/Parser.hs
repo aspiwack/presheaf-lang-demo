@@ -16,9 +16,13 @@ module Parser
     -- * Typechecker
     infer,
     check,
+
+    -- * Compilation
+    compileIntInt,
   )
 where
 
+import Arith qualified
 import Control.Monad.Combinators.Expr
 import Data.Kind
 import Data.Map (Map)
@@ -384,3 +388,18 @@ pNil = do
 -- | Parse a complete input (skip leading whitespace, expect EOF).
 parseModule :: Parser RawExpr
 parseModule = sc *> pExpr <* eof
+
+---------------------------------------------------------------------------
+-- Compilation pipeline
+---------------------------------------------------------------------------
+
+-- | Parse a string as a Lambda expression, typecheck it against @Int -> Int@,
+-- and lower it to an arithmetic expression via the presheaf interpretation.
+compileIntInt :: String -> Either String (Arith.Expr 'Arith.TInt 'Arith.TInt)
+compileIntInt input = do
+  raw <- case parse parseModule "" input of
+    Left err -> Left (errorBundlePretty err)
+    Right r -> Right r
+  case check raw (Lambda.SArr Lambda.SInt Lambda.SInt) Map.empty of
+    Nothing -> Left "Type error: expression does not have type Int -> Int"
+    Just kexpr -> Right $ Lambda.lower (kexpr id Empty)
