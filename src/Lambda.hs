@@ -10,6 +10,7 @@ module Lambda where
 
 import Arith qualified
 import Data.Kind
+import Data.Type.Equality
 
 ---------------------------------------------------------------------------
 -- Syntax
@@ -24,11 +25,31 @@ data Ty
 
 infixr 4 `TArr`
 
+instance Show Ty where
+  showsPrec _ TInt = showString "Int"
+  showsPrec p (TList τ) =
+    showParen (p > 10) $
+      showString "List " . showsPrec 11 τ
+  showsPrec p (TArr τ σ) =
+    showParen (p > 4) $
+      showsPrec 5 τ . showString " -> " . showsPrec 4 σ
+
 -- | Singletons for 'Ty'
 data STy :: Ty -> Type where
   SInt :: STy 'TInt
   SList :: STy τ -> STy (TList τ)
   SArr :: STy τ -> STy σ -> STy (TArr τ σ)
+
+instance TestEquality STy where
+  testEquality SInt SInt = Just Refl
+  testEquality (SList s1) (SList s2) = do
+    Refl <- testEquality s1 s2
+    Just Refl
+  testEquality (SArr s1 s2) (SArr s3 s4) = do
+    Refl <- testEquality s1 s3
+    Refl <- testEquality s2 s4
+    Just Refl
+  testEquality _ _ = Nothing
 
 class KnownTy (τ :: Ty) where
   tyRepr :: STy τ
@@ -42,14 +63,15 @@ instance (KnownTy τ) => KnownTy (TList τ) where
 instance (KnownTy τ, KnownTy σ) => KnownTy (TArr τ σ) where
   tyRepr = SArr tyRepr tyRepr
 
-instance Show Ty where
-  showsPrec _ TInt = showString "Int"
-  showsPrec p (TList τ) =
-    showParen (p > 10) $
-      showString "List " . showsPrec 11 τ
-  showsPrec p (TArr τ σ) =
-    showParen (p > 4) $
-      showsPrec 5 τ . showString " -> " . showsPrec 4 σ
+data SomeSTy where
+  SomeSTy :: STy τ -> SomeSTy
+
+sty :: Ty -> SomeSTy
+sty TInt = SomeSTy SInt
+sty (TList τ) = case sty τ of
+  SomeSTy s -> SomeSTy (SList s)
+sty (TArr τ σ) = case (sty τ, sty σ) of
+  (SomeSTy sτ, SomeSTy sσ) -> SomeSTy (SArr sτ sσ)
 
 -- | Intrinsically typed expressions in (PHOAS style)
 type Expr :: (Ty -> Type) -> Ty -> Type
@@ -61,7 +83,7 @@ data Expr v ty where
   Fix :: STy τ -> (forall w. (forall ρ. (KnownTy ρ) => v ρ -> w ρ) -> w τ -> Expr w τ) -> Expr v τ
   Nil :: STy τ -> Expr v ('TList τ)
   Cons :: Expr v τ -> Expr v ('TList τ) -> Expr v ('TList τ)
-  CaseList :: Expr v ('TList σ) -> Expr v τ -> (v σ -> v ('TList σ) -> Expr v τ) -> Expr v τ
+  CaseList :: Expr v ('TList σ) -> Expr v τ -> (forall w. (forall ρ. (KnownTy ρ) => v ρ -> w ρ) -> w σ -> w ('TList σ) -> Expr w τ) -> Expr v τ
   IfZero :: Expr v 'TInt -> Expr v τ -> Expr v τ -> Expr v τ
   Neg :: Expr v 'TInt -> Expr v 'TInt
   Add :: Expr v 'TInt -> Expr v 'TInt -> Expr v 'TInt
@@ -69,16 +91,36 @@ data Expr v ty where
   Mul :: Expr v 'TInt -> Expr v 'TInt -> Expr v 'TInt
   Div :: Expr v 'TInt -> Expr v 'TInt -> Expr v 'TInt
 
+hoistExpr :: (forall ρ. v ρ -> w ρ) -> Expr v ty -> Expr w ty
+hoistExpr k (Var v) = Var (k v)
+hoistExpr _ (Lit n) = Lit n
+hoistExpr k (Lam s f) = Lam s $ \k' x -> f (k' . k) x
+hoistExpr k (App e1 e2) = App (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (Fix s f) = Fix s $ \k' x -> f (k' . k) x
+hoistExpr _ (Nil s) = Nil s
+hoistExpr k (Cons e1 e2) = Cons (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (CaseList scrut enil econs) =
+  CaseList (hoistExpr k scrut) (hoistExpr k enil) $ \k' h t -> econs (k' . k) h t
+hoistExpr k (IfZero e e1 e2) = IfZero (hoistExpr k e) (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (Neg e) = Neg (hoistExpr k e)
+hoistExpr k (Add e1 e2) = Add (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (Sub e1 e2) = Sub (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (Mul e1 e2) = Mul (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr k (Div e1 e2) = Div (hoistExpr k e1) (hoistExpr k e2)
+
 ---------------------------------------------------------------------------
 -- Type checker
 ---------------------------------------------------------------------------
 
 -- Expression of an unknown type
-data UExpr where
-  MkUexpr :: STy ty -> Expr v ty -> UExpr
+data UExpr v where
+  MkUexpr :: STy ty -> Expr v ty -> UExpr v
 
 -- Constructors for UExpr
-lit :: Int -> Maybe UExpr
+var :: STy τ -> v τ -> UExpr v
+var s v = MkUexpr s (Var v)
+
+lit :: Int -> Maybe (UExpr v)
 lit n = Just (MkUexpr SInt (Lit n))
 
 -- lam :: STy σ -> (v σ -> UExpr) -> Maybe UExpr
@@ -244,7 +286,7 @@ interp (Cons e1 e2) =
 interp (CaseList scrut enil econs) =
   case interp scrut of
     MkPList [] -> interp enil
-    MkPList (h : t) -> interp (econs (MkFiber h) (MkFiber (MkPList t)))
+    MkPList (h : t) -> interp (econs (pbFiber Arith.Id) (MkFiber h) (MkFiber (MkPList t)))
 interp (IfZero _e _e1 _e2) =
   error "IfZero: cannot branch on symbolic arithmetic expressions"
 interp (Neg e) =
