@@ -59,11 +59,11 @@ data RawExpr
 type Env :: (Lambda.Ty -> Type) -> [Lambda.Ty] -> Type
 data Env w γ where
   Empty :: Env w '[]
-  Extend :: (Lambda.KnownTy ty) => w ty -> Env w y -> Env w (ty ': y)
+  Extend :: (Lambda.KnownTy ty) => w ty -> (forall ρ. (Lambda.KnownTy ρ) => w' ρ -> w ρ) -> Env w' y -> Env w (ty ': y)
 
 mapEnv :: (forall ty. (Lambda.KnownTy ty) => w ty -> w' ty) -> Env w γ -> Env w' γ
 mapEnv _ Empty = Empty
-mapEnv f (Extend w env) = Extend (f w) (mapEnv f env)
+mapEnv f (Extend w k env) = Extend (f w) (f . k) env
 
 type Var :: [Lambda.Ty] -> Lambda.Ty -> Type
 data Var γ ty where
@@ -71,8 +71,11 @@ data Var γ ty where
   There :: Var γ ty -> Var (ty' ': γ) ty
 
 lookupVar :: Var γ ty -> Env w γ -> w ty
-lookupVar Here (Extend w _) = w
-lookupVar (There v) (Extend _ env) = lookupVar v env
+lookupVar = go id
+  where
+    go :: (forall ρ. (Lambda.KnownTy ρ) => w' ρ -> w ρ) -> Var γ ty -> Env w' γ -> w ty
+    go k Here (Extend w _ _) = k w
+    go k (There v) (Extend _ k' env) = go (k . k') v env
 
 -- Basically encodes (typed) de Bruijn indices without creating a new type.
 type KExpr v γ ty = forall w. (forall ρ. (Lambda.KnownTy ρ) => v ρ -> w ρ) -> Env w γ -> Lambda.Expr w ty
@@ -86,7 +89,7 @@ klit n _k _env = Lambda.Lit n
 klam :: Lambda.STy ty -> KExpr v (ty ': γ) s -> KExpr v γ (Lambda.TArr ty s)
 klam @ty s e k env = Lambda.Lam s $ \k' v ->
   withDict @(Lambda.KnownTy ty) s $
-    e (k' . k) (Extend v (mapEnv k' env))
+    e (k' . k) (Extend v k' env)
 
 kapp :: KExpr v γ (Lambda.TArr s t) -> KExpr v γ s -> KExpr v γ t
 kapp e1 e2 k env = Lambda.App (e1 k env) (e2 k env)
@@ -94,7 +97,7 @@ kapp e1 e2 k env = Lambda.App (e1 k env) (e2 k env)
 kfix :: forall ty v γ. Lambda.STy ty -> KExpr v (ty ': γ) ty -> KExpr v γ ty
 kfix s e k env = Lambda.Fix s $ \k' v ->
   withDict @(Lambda.KnownTy ty) s $
-    e (k' . k) (Extend v (mapEnv k' env))
+    e (k' . k) (Extend v k' env)
 
 knil :: Lambda.STy ty -> KExpr v γ (Lambda.TList ty)
 knil s _k _env = Lambda.Nil s
@@ -105,7 +108,7 @@ kcons e1 e2 k env = Lambda.Cons (e1 k env) (e2 k env)
 kcaselist :: forall σ v γ ty. Lambda.STy σ -> KExpr v γ (Lambda.TList σ) -> KExpr v γ ty -> KExpr v (σ ': Lambda.TList σ ': γ) ty -> KExpr v γ ty
 kcaselist sElem scrut enil econs k env = Lambda.CaseList (scrut k env) (enil k env) $ \k' h t ->
   withDict @(Lambda.KnownTy σ) sElem $
-    econs (k' . k) (Extend h (Extend t (mapEnv k' env)))
+    econs (k' . k) (Extend h id (Extend t k' env))
 
 kifzero :: KExpr v γ 'Lambda.TInt -> KExpr v γ ty -> KExpr v γ ty -> KExpr v γ ty
 kifzero e e1 e2 k env = Lambda.IfZero (e k env) (e1 k env) (e2 k env)
@@ -125,7 +128,7 @@ data UKExpr v γ where
 
 extendEnv :: UKExpr v γ -> UKExpr v (ty ': γ)
 extendEnv (MkUexpr s e) = MkUexpr s $ \k env -> case env of
-  Extend _ env' -> e k env'
+  Extend _ k' env' -> e k (mapEnv k' env')
 
 klit' :: Int -> Maybe (UKExpr v γ)
 klit' n = Just $ MkUexpr Lambda.SInt (klit n)
