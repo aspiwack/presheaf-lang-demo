@@ -19,6 +19,7 @@ import Data.Type.Equality
 -- | Types
 data Ty
   = TInt -- Int
+  | TBool -- Bool
   | TList Ty -- List τ
   | TArr Ty Ty -- τ → σ
   deriving (Eq)
@@ -27,6 +28,7 @@ infixr 4 `TArr`
 
 instance Show Ty where
   showsPrec _ TInt = showString "Int"
+  showsPrec _ TBool = showString "Bool"
   showsPrec p (TList τ) =
     showParen (p > 10) $
       showString "List " . showsPrec 11 τ
@@ -37,11 +39,13 @@ instance Show Ty where
 -- | Singletons for 'Ty'
 data STy :: Ty -> Type where
   SInt :: STy 'TInt
+  SBool :: STy 'TBool
   SList :: STy τ -> STy (TList τ)
   SArr :: STy τ -> STy σ -> STy (TArr τ σ)
 
 instance TestEquality STy where
   testEquality SInt SInt = Just Refl
+  testEquality SBool SBool = Just Refl
   testEquality (SList s1) (SList s2) = do
     Refl <- testEquality s1 s2
     Just Refl
@@ -57,6 +61,9 @@ class KnownTy (τ :: Ty) where
 instance KnownTy 'TInt where
   tyRepr = SInt
 
+instance KnownTy 'TBool where
+  tyRepr = SBool
+
 instance (KnownTy τ) => KnownTy (TList τ) where
   tyRepr = SList tyRepr
 
@@ -68,6 +75,7 @@ data SomeSTy where
 
 sty :: Ty -> SomeSTy
 sty TInt = SomeSTy SInt
+sty TBool = SomeSTy SBool
 sty (TList τ) = case sty τ of
   SomeSTy s -> SomeSTy (SList s)
 sty (TArr τ σ) = case (sty τ, sty σ) of
@@ -258,6 +266,7 @@ data Dict c where
 
 presheafOf :: forall ty. STy ty -> Dict (Presheaf (PreshOf ty))
 presheafOf SInt = Dict
+presheafOf SBool = Dict
 presheafOf (SList s) = case presheafOf s of
   Dict -> Dict
 presheafOf (SArr s1 s2) = case (presheafOf s1, presheafOf s2) of

@@ -54,6 +54,9 @@ data RawExpr
   | RSub RawExpr RawExpr
   | RMul RawExpr RawExpr
   | RDiv RawExpr RawExpr
+  | RBTrue
+  | RBFalse
+  | RIsZero RawExpr
   deriving (Show, Eq)
 
 type Env :: (Lambda.Ty -> Type) -> [Lambda.Ty] -> Type
@@ -115,6 +118,15 @@ kifzero e e1 e2 k env = Lambda.IfZero (e k env) (e1 k env) (e2 k env)
 
 kneg :: KExpr v γ 'Lambda.TInt -> KExpr v γ 'Lambda.TInt
 kneg e k env = Lambda.Neg (e k env)
+
+kbtrue :: KExpr v γ 'Lambda.TBool
+kbtrue _k _env = Lambda.BTrue
+
+kbfalse :: KExpr v γ 'Lambda.TBool
+kbfalse _k _env = Lambda.BFalse
+
+kiszero :: KExpr v γ 'Lambda.TInt -> KExpr v γ 'Lambda.TBool
+kiszero e k env = Lambda.IsZero (e k env)
 
 karith ::
   (forall w. Lambda.Expr w 'Lambda.TInt -> Lambda.Expr w 'Lambda.TInt -> Lambda.Expr w 'Lambda.TInt) ->
@@ -188,6 +200,11 @@ infer (RIfZero e e1 e2) env = do
   MkUexpr s e1' <- infer e1 env
   e2' <- check e2 s env
   Just $ MkUexpr s (kifzero e' e1' e2')
+infer RBTrue _ = Just $ MkUexpr Lambda.SBool kbtrue
+infer RBFalse _ = Just $ MkUexpr Lambda.SBool kbfalse
+infer (RIsZero e) env = do
+  e' <- check e Lambda.SInt env
+  Just $ MkUexpr Lambda.SBool (kiszero e')
 infer (RNeg e) env = do
   e' <- check e Lambda.SInt env
   Just $ MkUexpr Lambda.SInt (kneg e')
@@ -244,7 +261,7 @@ braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
 reserved :: [String]
-reserved = ["Int", "List", "fix", "nil", "case", "of", "ifzero", "then", "else", "let", "in"]
+reserved = ["Int", "Bool", "List", "fix", "nil", "case", "of", "ifzero", "iszero", "then", "else", "let", "in", "true", "false"]
 
 identifier :: Parser String
 identifier = lexeme $ try $ do
@@ -275,6 +292,7 @@ tyAtom :: Parser Lambda.Ty
 tyAtom =
   choice
     [ Lambda.TInt <$ symbol "Int",
+      Lambda.TBool <$ symbol "Bool",
       Lambda.TList <$> (symbol "List" *> tyAtom),
       parens parseTy
     ]
@@ -378,6 +396,7 @@ pUnary :: Parser RawExpr
 pUnary =
   choice
     [ RNeg <$> (symbol "-" *> pUnary),
+      RIsZero <$> (symbol "iszero" *> pUnary),
       pApp
     ]
 
@@ -389,6 +408,8 @@ pAtom :: Parser RawExpr
 pAtom =
   choice
     [ RLit <$> integer,
+      RBTrue <$ symbol "true",
+      RBFalse <$ symbol "false",
       pNil,
       RVar <$> identifier,
       parens pExpr

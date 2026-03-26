@@ -8,6 +8,7 @@ module Arith where
 -- | Types in the arithmetic language
 data Ty
   = TInt
+  | TBool
   | TProd Ty Ty
   | TUnit
   deriving (Show, Eq)
@@ -21,6 +22,10 @@ data Expr (i :: Ty) (o :: Ty) where
   Sub :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
   Mul :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
   Div :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
+  BTrue :: Expr i 'TBool
+  BFalse :: Expr i 'TBool
+  IsZero :: Expr i 'TInt -> Expr i 'TBool
+  IfThenElse :: Expr i 'TBool -> Expr i a -> Expr i a -> Expr i a
   Pair :: Expr i a -> Expr i b -> Expr i ('TProd a b)
   Fst :: Expr i ('TProd a b) -> Expr i a
   Snd :: Expr i ('TProd a b) -> Expr i b
@@ -37,6 +42,10 @@ compose e1 (Add e2 e3) = Add (compose e1 e2) (compose e1 e3)
 compose e1 (Sub e2 e3) = Sub (compose e1 e2) (compose e1 e3)
 compose e1 (Mul e2 e3) = Mul (compose e1 e2) (compose e1 e3)
 compose e1 (Div e2 e3) = Div (compose e1 e2) (compose e1 e3)
+compose _e BTrue = BTrue
+compose _e BFalse = BFalse
+compose e1 (IsZero e2) = IsZero (compose e1 e2)
+compose e1 (IfThenElse c t f) = IfThenElse (compose e1 c) (compose e1 t) (compose e1 f)
 compose e1 (Fst e2) = Fst (compose e1 e2)
 compose e1 (Snd e2) = Snd (compose e1 e2)
 compose e1 (Pair e2 e3) = Pair (compose e1 e2) (compose e1 e3)
@@ -61,6 +70,7 @@ cdiv = Div (Fst Id) (Snd Id)
 -- | Values indexed by their type
 data Val (t :: Ty) where
   VInt :: Int -> Val 'TInt
+  VBool :: Bool -> Val 'TBool
   VPair :: Val a -> Val b -> Val ('TProd a b)
   VUnit :: Val 'TUnit
 
@@ -100,6 +110,16 @@ eval v (Div e1 e2) = do
   case (val1, val2) of
     (VInt _, VInt 0) -> Left DivisionByZero
     (VInt n1, VInt n2) -> Right (VInt (n1 `div` n2))
+eval _ BTrue = Right (VBool True)
+eval _ BFalse = Right (VBool False)
+eval v (IsZero e) = do
+  val <- eval v e
+  case val of VInt n -> Right (VBool (n == 0))
+eval v (IfThenElse c t f) = do
+  cond <- eval v c
+  case cond of
+    VBool True -> eval v t
+    VBool False -> eval v f
 eval v (Pair e1 e2) = do
   v1 <- eval v e1
   v2 <- eval v e2
