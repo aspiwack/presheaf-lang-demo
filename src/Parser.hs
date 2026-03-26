@@ -48,7 +48,7 @@ data RawExpr
   | RNil Lambda.Ty
   | RCons RawExpr RawExpr
   | RCaseList RawExpr RawExpr String String RawExpr
-  | RIfZero RawExpr RawExpr RawExpr
+  | RIfThenElse RawExpr RawExpr RawExpr
   | RNeg RawExpr
   | RAdd RawExpr RawExpr
   | RSub RawExpr RawExpr
@@ -108,13 +108,17 @@ knil s _k _env = Lambda.Nil s
 kcons :: KExpr v γ ty -> KExpr v γ (Lambda.TList ty) -> KExpr v γ (Lambda.TList ty)
 kcons e1 e2 k env = Lambda.Cons (e1 k env) (e2 k env)
 
-kcaselist :: forall σ v γ ty. Lambda.STy σ -> KExpr v γ (Lambda.TList σ) -> KExpr v γ ty -> KExpr v (σ ': Lambda.TList σ ': γ) ty -> KExpr v γ ty
-kcaselist sElem scrut enil econs k env = Lambda.CaseList (scrut k env) (enil k env) $ \k' h t ->
-  withDict @(Lambda.KnownTy σ) sElem $
-    econs (k' . k) (Extend h id (Extend t k' env))
+kcaselist :: forall σ v γ ty. Lambda.STy σ -> Lambda.STy ty -> KExpr v γ (Lambda.TList σ) -> KExpr v γ ty -> KExpr v (σ ': Lambda.TList σ ': γ) ty -> KExpr v γ ty
+kcaselist sEv tyEv scrut enil econs k env =
+  withDict @(Lambda.KnownTy σ) sEv $
+    withDict @(Lambda.KnownTy ty) tyEv $
+      Lambda.CaseList (scrut k env) (enil k env) $ \k' h t ->
+        econs (k' . k) (Extend h id (Extend t k' env))
 
-kifzero :: KExpr v γ 'Lambda.TInt -> KExpr v γ ty -> KExpr v γ ty -> KExpr v γ ty
-kifzero e e1 e2 k env = Lambda.IfZero (e k env) (e1 k env) (e2 k env)
+kifthenelse :: Lambda.STy ty -> KExpr v γ 'Lambda.TBool -> KExpr v γ ty -> KExpr v γ ty -> KExpr v γ ty
+kifthenelse @ty tyEv e e1 e2 k env =
+  withDict @(Lambda.KnownTy ty) tyEv $
+    Lambda.IfThenElse (e k env) (e1 k env) (e2 k env)
 
 kneg :: KExpr v γ 'Lambda.TInt -> KExpr v γ 'Lambda.TInt
 kneg e k env = Lambda.Neg (e k env)
@@ -193,13 +197,13 @@ infer (RCaseList scrut enil hd tl econs) env = do
               Map.insert tl (MkUexpr (Lambda.SList sElem) (kvar (There Here))) $
                 Map.map (extendEnv . extendEnv) env
       econs' <- check econs sRes env'
-      Just $ MkUexpr sRes (kcaselist sElem scrut' enil' econs')
+      Just $ MkUexpr sRes (kcaselist sElem sRes scrut' enil' econs')
     _ -> Nothing
-infer (RIfZero e e1 e2) env = do
-  e' <- check e Lambda.SInt env
+infer (RIfThenElse e e1 e2) env = do
+  e' <- check e Lambda.SBool env
   MkUexpr s e1' <- infer e1 env
   e2' <- check e2 s env
-  Just $ MkUexpr s (kifzero e' e1' e2')
+  Just $ MkUexpr s (kifthenelse s e' e1' e2')
 infer RBTrue _ = Just $ MkUexpr Lambda.SBool kbtrue
 infer RBFalse _ = Just $ MkUexpr Lambda.SBool kbfalse
 infer (RIsZero e) env = do
@@ -320,7 +324,7 @@ pExpr =
     [ pLam,
       pFix,
       pLet,
-      pIfZero,
+      pIfThenElse,
       pCaseList,
       pCons
     ]
@@ -350,14 +354,14 @@ pLet = do
   e2 <- pExpr
   pure $ RApp (RLam x ty e2) e1
 
-pIfZero :: Parser RawExpr
-pIfZero = do
-  _ <- symbol "ifzero"
+pIfThenElse :: Parser RawExpr
+pIfThenElse = do
+  _ <- symbol "if"
   e <- pCons
   _ <- symbol "then"
   e1 <- pExpr
   _ <- symbol "else"
-  RIfZero e e1 <$> pExpr
+  RIfThenElse e e1 <$> pExpr
 
 pCaseList :: Parser RawExpr
 pCaseList = do

@@ -2,8 +2,11 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeAbstractions #-}
 
 module Arith where
+
+import Data.Kind
 
 -- | Types in the arithmetic language
 data Ty
@@ -66,6 +69,9 @@ mul = Mul (Fst Id) (Snd Id)
 
 cdiv :: Expr ('TProd 'TInt 'TInt) 'TInt
 cdiv = Div (Fst Id) (Snd Id)
+
+cocone :: Expr 'TUnit a -> Expr 'TUnit a -> Expr 'TBool a
+cocone t f = IfThenElse Id (Unit `compose` t) (Unit `compose` f)
 
 -- | Values indexed by their type
 data Val (t :: Ty) where
@@ -131,3 +137,75 @@ eval v (Snd e) = do
   val <- eval v e
   case val of VPair _ v2 -> Right v2
 eval _v Unit = Right (VUnit)
+
+-----------------------------------------------
+--
+-- Reflection of types
+--
+-----------------------------------------------
+
+-- TODO: probably not needed, remove.
+
+type STy :: Ty -> Type
+data STy i where
+  SInt :: STy 'TInt
+  SBool :: STy 'TBool
+  SProd :: STy a -> STy b -> STy ('TProd a b)
+  SUnit :: STy 'TUnit
+
+class KnownTy (i :: Ty) where
+  knownTy :: STy i
+
+instance KnownTy 'TInt where
+  knownTy = SInt
+
+instance KnownTy 'TBool where
+  knownTy = SBool
+
+instance (KnownTy a, KnownTy b) => KnownTy ('TProd a b) where
+  knownTy = SProd knownTy knownTy
+
+instance KnownTy 'TUnit where
+  knownTy = SUnit
+
+-- We could do this for every type, but really we only need Bool
+caseBool :: (KnownTy i) => ((i ~ TBool) => r) -> r -> r
+caseBool @i t f =
+  case knownTy :: STy i of
+    SInt -> f
+    SBool -> t
+    SProd _ _ -> f
+    SUnit -> f
+
+-----------------------------------------------
+--
+-- Coverings / Site / Grothendieck topology
+--
+-----------------------------------------------
+
+type Coverings :: Ty -> Type
+data Coverings i where
+  BoolSumCovering :: Coverings 'TBool
+  IdCovering :: Coverings i
+
+-- pbCoverings :: Expr i j -> Coverings j -> Coverings i
+-- pbCoverings _ IdCovering = IdCovering
+-- pbCoverings Id BoolSumCovering = BoolSumCovering
+-- pbCoverings (IfThenElse b t e) BoolSumCovering = _
+-- pbCoverings _ BoolSumCovering = IdCovering
+
+type CoverArrows :: Ty -> forall (j :: Ty) -> Coverings j -> Type
+data CoverArrows i j c where
+  IdCover :: Expr i j -> CoverArrows i j IdCovering
+  BoolTrueCover :: CoverArrows i 'TBool BoolSumCovering
+  BoolFalseCover :: CoverArrows i 'TBool BoolSumCovering
+
+coverArrow :: forall i j c. CoverArrows i j c -> Expr i j
+coverArrow (IdCover e) = e
+coverArrow BoolTrueCover = BTrue
+coverArrow BoolFalseCover = BFalse
+
+mapCover :: Expr i j -> CoverArrows j k c -> CoverArrows i k c
+mapCover e (IdCover c) = IdCover (compose e c)
+mapCover _ BoolTrueCover = BoolTrueCover
+mapCover _ BoolFalseCover = BoolFalseCover

@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TypeAbstractions #-}
@@ -11,9 +13,13 @@ module Lambda where
 import Arith qualified
 import Data.Kind
 import Data.Type.Equality
+import Presheaf
+import Sheaf
 
 ---------------------------------------------------------------------------
+--
 -- Syntax
+--
 ---------------------------------------------------------------------------
 
 -- | Types
@@ -91,8 +97,11 @@ data Expr v ty where
   Fix :: STy τ -> (forall w. (forall ρ. (KnownTy ρ) => v ρ -> w ρ) -> w τ -> Expr w τ) -> Expr v τ
   Nil :: STy τ -> Expr v ('TList τ)
   Cons :: Expr v τ -> Expr v ('TList τ) -> Expr v ('TList τ)
-  CaseList :: Expr v ('TList σ) -> Expr v τ -> (forall w. (forall ρ. (KnownTy ρ) => v ρ -> w ρ) -> w σ -> w ('TList σ) -> Expr w τ) -> Expr v τ
-  IfZero :: Expr v 'TInt -> Expr v τ -> Expr v τ -> Expr v τ
+  CaseList :: (KnownTy σ, KnownTy τ) => Expr v ('TList σ) -> Expr v τ -> (forall w. (forall ρ. (KnownTy ρ) => v ρ -> w ρ) -> w σ -> w ('TList σ) -> Expr w τ) -> Expr v τ
+  BTrue :: Expr v 'TBool
+  BFalse :: Expr v 'TBool
+  IsZero :: Expr v 'TInt -> Expr v 'TBool
+  IfThenElse :: (KnownTy τ) => Expr v 'TBool -> Expr v τ -> Expr v τ -> Expr v τ
   Neg :: Expr v 'TInt -> Expr v 'TInt
   Add :: Expr v 'TInt -> Expr v 'TInt -> Expr v 'TInt
   Sub :: Expr v 'TInt -> Expr v 'TInt -> Expr v 'TInt
@@ -109,7 +118,10 @@ hoistExpr _ (Nil s) = Nil s
 hoistExpr k (Cons e1 e2) = Cons (hoistExpr k e1) (hoistExpr k e2)
 hoistExpr k (CaseList scrut enil econs) =
   CaseList (hoistExpr k scrut) (hoistExpr k enil) $ \k' h t -> econs (k' . k) h t
-hoistExpr k (IfZero e e1 e2) = IfZero (hoistExpr k e) (hoistExpr k e1) (hoistExpr k e2)
+hoistExpr _ BTrue = BTrue
+hoistExpr _ BFalse = BFalse
+hoistExpr k (IsZero e) = IsZero (hoistExpr k e)
+hoistExpr k (IfThenElse e e1 e2) = IfThenElse (hoistExpr k e) (hoistExpr k e1) (hoistExpr k e2)
 hoistExpr k (Neg e) = Neg (hoistExpr k e)
 hoistExpr k (Add e1 e2) = Add (hoistExpr k e1) (hoistExpr k e2)
 hoistExpr k (Sub e1 e2) = Sub (hoistExpr k e1) (hoistExpr k e2)
@@ -218,45 +230,19 @@ lit n = Just (MkUexpr SInt (Lit n))
 --     _ -> Left (NotAnInt τ1)
 
 ---------------------------------------------------------------------------
+--
 -- Interpreter
+--
 ---------------------------------------------------------------------------
 
-type Presh = Arith.Ty -> Type
-
-class Presheaf (p :: Presh) where
-  pb :: Arith.Expr i j -> p j -> p i
-
-type Y :: Arith.Ty -> Presh
-newtype Y a i = MkY (Arith.Expr i a)
-
-instance Presheaf (Y a) where
-  pb f (MkY e) = MkY (Arith.compose f e)
-
-type PProd :: Presh -> Presh -> Presh
-newtype PProd p q i = MkPProd (p i, q i)
-
-instance (Presheaf p, Presheaf q) => Presheaf (PProd p q) where
-  pb f (MkPProd (x, y)) = MkPProd (pb f x, pb f y)
-
-type PList :: Presh -> Presh
-newtype PList p i = MkPList [p i]
-
-instance (Presheaf p) => Presheaf (PList p) where
-  pb f (MkPList xs) = MkPList (map (pb f) xs)
-
-type PFun :: Presh -> Presh -> Presh
-newtype PFun p q i = MkPFun (forall j. Arith.Expr j i -> p j -> q j)
-
-instance (Presheaf p, Presheaf q) => Presheaf (PFun p q) where
-  pb f (MkPFun g) = MkPFun $ \k x -> g (Arith.compose k f) x
-
-lamP :: (Presheaf p, Presheaf q, Presheaf r) => (forall i. PProd p q i -> r i) -> (forall i. p i -> PFun q r i)
-lamP f x = MkPFun $ \k y -> f (MkPProd (pb k x, y))
-
+-- | Because the interpreter is typed, we need an interpretation of each type.
+-- We make sure that this interpretation is always a sheaf. See 'sheafOf' and
+-- 'presheafOf' below.
 type PreshOf :: Ty -> Presh
 type family PreshOf a where
   PreshOf 'TInt = Y 'Arith.TInt
-  PreshOf (TList τ) = PList (PreshOf τ)
+  PreshOf 'TBool = Y 'Arith.TBool
+  PreshOf (TList τ) = ShList (PreshOf τ)
   PreshOf (TArr τ σ) = PFun (PreshOf τ) (PreshOf σ)
 
 newtype Fiber i τ = MkFiber (PreshOf τ i)
@@ -272,11 +258,24 @@ presheafOf (SList s) = case presheafOf s of
 presheafOf (SArr s1 s2) = case (presheafOf s1, presheafOf s2) of
   (Dict, Dict) -> Dict
 
+sheafOf :: forall ty. STy ty -> Dict (Sheaf (PreshOf ty))
+sheafOf SInt = Dict
+sheafOf SBool = Dict
+sheafOf (SList s) = case sheafOf s of
+  Dict -> Dict
+sheafOf (SArr s1 s2) = case (sheafOf s1, sheafOf s2) of
+  (Dict, Dict) -> Dict
+
 pbFiber :: (KnownTy ty) => Arith.Expr i j -> Fiber j ty -> Fiber i ty
 pbFiber @ty f (MkFiber x) = case presheafOf (tyRepr @ty) of
   Dict -> MkFiber (pb f x)
 
-interp :: forall ty i. Expr (Fiber i) ty -> PreshOf ty i
+-- | Note that 'Expr', being a datatype with sums, is only a presheaf. But it's
+-- alright (like in the sheaf instance for 'PFun') for the domain to be a
+-- presheaf, as long as the codomain is a sheaf. Therefore we can use an @Expr
+-- (Fiber i)@ as a context, storing the values for the variables directly in the
+-- variable spots.
+interp :: forall i ty. Expr (Fiber i) ty -> PreshOf ty i
 interp (Var (MkFiber v)) = v
 interp (Lit n) = MkY (Arith.Lit n)
 interp (Lam _s f) = MkPFun $ \k x ->
@@ -284,20 +283,29 @@ interp (Lam _s f) = MkPFun $ \k x ->
 interp (App e1 e2) =
   case interp e1 of
     MkPFun f -> f Arith.Id (interp e2)
--- fix via lazy knot-tying: the recursive variable points to the result itself
 interp (Fix _s f) =
-  let go = interp (f (pbFiber Arith.Id) (MkFiber go))
+  let go = interp (f id (MkFiber go))
    in go
-interp (Nil _s) = MkPList []
-interp (Cons e1 e2) =
-  case interp e2 of
-    MkPList t -> MkPList (interp e1 : t)
+interp (Nil _s) = ShNil
+interp (Cons e1 e2) = ShCons (interp e1) (interp e2)
 interp (CaseList scrut enil econs) =
-  case interp scrut of
-    MkPList [] -> interp enil
-    MkPList (h : t) -> interp (econs (pbFiber Arith.Id) (MkFiber h) (MkFiber (MkPList t)))
-interp (IfZero _e _e1 _e2) =
-  error "IfZero: cannot branch on symbolic arithmetic expressions"
+  go (interp scrut)
+  where
+    go (ShNil) = interp enil
+    go (ShCons h t) = interp (econs id (MkFiber h) (MkFiber t))
+    go (ListOracle k o) =
+      case sheafOf (tyRepr @ty) of
+        Dict ->
+          glueOracle k $ \c -> go (o c)
+interp BTrue = MkY Arith.BTrue
+interp BFalse = MkY Arith.BFalse
+interp (IsZero e) =
+  case interp e of
+    MkY a -> MkY (Arith.IsZero a)
+interp @_ (IfThenElse b t f) =
+  case sheafOf (tyRepr @ty) of
+    Dict ->
+      ifThenElseSh (interp b) (interp t) (interp f)
 interp (Neg e) =
   case interp e of
     MkY a -> MkY (Arith.Neg a)
@@ -315,7 +323,13 @@ interpArith op e1 e2 =
   case (interp e1, interp e2) of
     (MkY a1, MkY a2) -> MkY (op a1 a2)
 
-lower :: Expr (Fiber Arith.TInt) ('TArr 'TInt 'TInt) -> Arith.Expr 'Arith.TInt 'Arith.TInt
+-- | Key entry function. Given a function @int -> int@ in the λ-calculus,
+-- evaluate to a circuit 'int -> int' in the base category.
+--
+-- Since products of representables are representable, it could have been a
+-- function of a tuple of int to a tuple of int. But it's a little bit more
+-- machinery, and I didn't think it was worth it.
+lower :: Expr (Fiber 'Arith.TInt) ('TArr 'TInt 'TInt) -> Arith.Expr 'Arith.TInt 'Arith.TInt
 lower e = case interp e of
   MkPFun f -> case f (Arith.Id) (MkY (Arith.Id)) of
     MkY e' -> e'

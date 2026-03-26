@@ -17,6 +17,8 @@ library
       Arith
       Lambda
       Parser
+      Presheaf
+      Sheaf
   other-modules:
       Paths_presheaf_lang_demo
   hs-source-dirs:
