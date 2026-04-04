@@ -6,8 +6,6 @@
 
 module Arith where
 
-import Data.Kind
-
 -- | Types in the arithmetic language
 data Ty
   = TInt
@@ -137,36 +135,3 @@ eval v (Snd e) = do
   val <- eval v e
   case val of VPair _ v2 -> Right v2
 eval _v Unit = Right (VUnit)
-
------------------------------------------------
---
--- Coverings / Site / Grothendieck topology
---
------------------------------------------------
-
-type Coverings :: Ty -> Type
-data Coverings i where
-  BoolSumCovering :: Coverings 'TBool
-  IdCovering :: Coverings i
-
--- pbCoverings :: Expr i j -> Coverings j -> Coverings i
--- pbCoverings _ IdCovering = IdCovering
--- pbCoverings Id BoolSumCovering = BoolSumCovering
--- pbCoverings (IfThenElse b t e) BoolSumCovering = _
--- pbCoverings _ BoolSumCovering = IdCovering
-
-type CoverArrows :: Ty -> forall (j :: Ty) -> Coverings j -> Type
-data CoverArrows i j c where
-  IdCover :: Expr i j -> CoverArrows i j IdCovering
-  BoolTrueCover :: CoverArrows i 'TBool BoolSumCovering
-  BoolFalseCover :: CoverArrows i 'TBool BoolSumCovering
-
-coverArrow :: forall i j c. CoverArrows i j c -> Expr i j
-coverArrow (IdCover e) = e
-coverArrow BoolTrueCover = BTrue
-coverArrow BoolFalseCover = BFalse
-
-mapCover :: Expr i j -> CoverArrows j k c -> CoverArrows i k c
-mapCover e (IdCover c) = IdCover (compose e c)
-mapCover _ BoolTrueCover = BoolTrueCover
-mapCover _ BoolFalseCover = BoolFalseCover
