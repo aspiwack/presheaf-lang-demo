@@ -9,6 +9,7 @@ dependencies:
 - containers
 - diagnose
 - megaparsec >= 9.0
+- optparse-applicative
 - parser-combinators >= 1.3
 
 library:

@@ -1,4 +1,4 @@
--- $ stack exec presheaf-lang-demo -- 5 "$(cat examples/fact.presh)"
+-- $ stack exec presheaf-lang-demo -- run 5 -- "$(cat examples/fact.presh)"
 -- 120
 
 let rec (fact : Int -> Int) n =

@@ -30,6 +30,7 @@ library
     , containers
     , diagnose
     , megaparsec >=9.0
+    , optparse-applicative
     , parser-combinators >=1.3
   default-language: GHC2021
 
@@ -45,6 +46,7 @@ executable presheaf-lang-demo
     , containers
     , diagnose
     , megaparsec >=9.0
+    , optparse-applicative
     , parser-combinators >=1.3
     , presheaf-lang-demo
   default-language: GHC2021

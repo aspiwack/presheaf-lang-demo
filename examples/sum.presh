@@ -1,4 +1,4 @@
--- $ stack exec presheaf-lang-demo -- 6 "$(cat examples/sum.presh)"
+-- $ stack exec presheaf-lang-demo -- run 6 -- "$(cat examples/sum.presh)"
 -- 18
 let rec (sum : List Int -> Int) xs =
   case xs of

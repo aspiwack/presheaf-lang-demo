@@ -4,39 +4,64 @@
 module Main where
 
 import Arith qualified
+import Control.Monad
 import Data.Map qualified as Map
 import Error.Diagnose
 import Lambda qualified as Lambda
+import Options.Applicative
 import Parser
-import System.Environment (getArgs)
 import System.Exit (exitFailure)
-import Text.Megaparsec
+import Text.Megaparsec (errorBundlePretty, parse)
 import Typecheck
+
+---------------------------------------------------------------------------
+--
+-- CLI
+--
+---------------------------------------------------------------------------
+
+commandParser :: ParserInfo (IO ())
+commandParser =
+  info (commandP <**> helper) $
+    fullDesc
+      <> progDesc "Sheaf language demo"
+
+commandP :: Options.Applicative.Parser (IO ())
+commandP =
+  subparser $
+    command "run" $
+      info (runP <**> helper) $
+        progDesc "Compile and run an expression of type Int -> Int"
+
+runP :: Options.Applicative.Parser (IO ())
+runP =
+  runCommand
+    <$> argument auto (metavar "N" <> help "Input integer")
+    <*> argument str (metavar "EXPR" <> help "Expression of type Int -> Int")
+
+---------------------------------------------------------------------------
+--
+-- Main
+--
+---------------------------------------------------------------------------
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-    [nStr, exprStr] -> do
-      n <- case reads nStr of
-        [(n', "")] -> pure (n' :: Int)
-        _ -> do
-          putStrLn "Error: first argument must be an integer"
-          exitFailure
-      case compileIntInt "<input>" exprStr of
-        Left diag -> do
-          printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle diag
-          exitFailure
-        Right arithExpr ->
-          case Arith.eval (Arith.VInt n) arithExpr of
-            Left Arith.DivisionByZero -> do
-              putStrLn "Error: division by zero"
-              exitFailure
-            Right (Arith.VInt result) ->
-              print result
-    _ -> do
-      putStrLn "Usage: presheaf-lang-demo <number> '<expression>'"
+  join $ execParser commandParser
+
+runCommand :: Int -> String -> IO ()
+runCommand n exprStr =
+  case compileIntInt "<input>" exprStr of
+    Left diag -> do
+      printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle diag
       exitFailure
+    Right arithExpr ->
+      case Arith.eval (Arith.VInt n) arithExpr of
+        Left Arith.DivisionByZero -> do
+          putStrLn "Error: division by zero"
+          exitFailure
+        Right (Arith.VInt result) ->
+          print result
 
 ---------------------------------------------------------------------------
 --
