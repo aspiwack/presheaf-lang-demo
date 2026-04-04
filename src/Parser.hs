@@ -391,6 +391,7 @@ pFix = do
 
 -- | @let (x : T) = e1 in e2@ or @let x = e1 in e2@
 --   @let rec (x : T) = e1 in e2@ desugars to @let (x : T) = fix (x : T). e1 in e2@
+--   @let (f : T) x1 ... xn = e1 in e2@ desugars to @let (f : T) = \x1. ... \xn. e1 in e2@
 pLet :: Parser RawExpr
 pLet = do
   _ <- symbol "let"
@@ -399,11 +400,13 @@ pLet = do
     parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
       <|> (,Nothing)
       <$> identifier
+  args <- many identifier
   _ <- symbol "="
   e1 <- pExpr
   _ <- symbol "in"
-  let e1' = if rec then RFix x ty e1 else e1
-  RLet x ty e1' <$> pExpr
+  let e1' = foldr (\a b -> RLam a Nothing b) e1 args
+  let e1'' = if rec then RFix x ty e1' else e1'
+  RLet x ty e1'' <$> pExpr
 
 pIfThenElse :: Parser RawExpr
 pIfThenElse = do
