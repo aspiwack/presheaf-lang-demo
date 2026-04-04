@@ -42,12 +42,13 @@ import Text.Megaparsec.Char.Lexer qualified as L
 data RawExpr
   = RVar String
   | RLit Int
-  | RLam String Lambda.Ty RawExpr
+  | RLam String (Maybe Lambda.Ty) RawExpr
   | RApp RawExpr RawExpr
-  | RFix String Lambda.Ty RawExpr
-  | RNil Lambda.Ty
+  | RFix String (Maybe Lambda.Ty) RawExpr
+  | RNil (Maybe Lambda.Ty)
   | RCons RawExpr RawExpr
   | RCaseList RawExpr RawExpr String String RawExpr
+  | RLet String (Maybe Lambda.Ty) RawExpr RawExpr
   | RIfThenElse RawExpr RawExpr RawExpr
   | RNeg RawExpr
   | RAdd RawExpr RawExpr
@@ -149,13 +150,6 @@ extendEnv (MkUexpr s e) = MkUexpr s $ \k env -> case env of
 klit' :: Int -> Maybe (UKExpr v γ)
 klit' n = Just $ MkUexpr Lambda.SInt (klit n)
 
-kapp' :: UKExpr v γ -> UKExpr v γ -> Maybe (UKExpr v γ)
-kapp' (MkUexpr (Lambda.SArr s t) e1) (MkUexpr s' e2) =
-  case testEquality s s' of
-    Just Refl -> Just $ MkUexpr t (kapp e1 e2)
-    Nothing -> Nothing
-kapp' _ _ = Nothing
-
 ---------------------------------------------------------------------------
 -- Bidirectional typechecker
 ---------------------------------------------------------------------------
@@ -164,21 +158,38 @@ kapp' _ _ = Nothing
 infer :: RawExpr -> Map String (UKExpr v γ) -> Maybe (UKExpr v γ)
 infer (RVar x) env = Map.lookup x env
 infer (RLit n) _ = klit' n
-infer (RLam x ty e) env = case Lambda.sty ty of
+infer (RLam _ Nothing _) _ = Nothing -- can't infer unannotated lambda
+infer (RLam x (Just ty) e) env = case Lambda.sty ty of
   Lambda.SomeSTy sTy -> do
     let env' = Map.insert x (MkUexpr sTy (kvar Here)) (Map.map extendEnv env)
     MkUexpr sRes e' <- infer e env'
     Just $ MkUexpr (Lambda.SArr sTy sRes) (klam sTy e')
+infer (RLet x Nothing e1 e2) env = do
+  MkUexpr s1 e1' <- infer e1 env
+  let env' = Map.insert x (MkUexpr s1 (kvar Here)) (Map.map extendEnv env)
+  MkUexpr s2 e2' <- infer e2 env'
+  Just $ MkUexpr s2 (kapp (klam s1 e2') e1')
+infer (RLet x (Just ty) e1 e2) env = case Lambda.sty ty of
+  Lambda.SomeSTy sTy -> do
+    e1' <- check e1 sTy env
+    let env' = Map.insert x (MkUexpr sTy (kvar Here)) (Map.map extendEnv env)
+    MkUexpr s2 e2' <- infer e2 env'
+    Just $ MkUexpr s2 (kapp (klam sTy e2') e1')
 infer (RApp e1 e2) env = do
   e1' <- infer e1 env
-  e2' <- infer e2 env
-  kapp' e1' e2'
-infer (RFix x ty e) env = case Lambda.sty ty of
+  case e1' of
+    MkUexpr (Lambda.SArr s1 s2) e1'' -> do
+      e2' <- check e2 s1 env
+      Just $ MkUexpr s2 (kapp e1'' e2')
+    _ -> Nothing
+infer (RFix _ Nothing _) _ = Nothing -- can't infer unannotated fix
+infer (RFix x (Just ty) e) env = case Lambda.sty ty of
   Lambda.SomeSTy sTy -> do
     let env' = Map.insert x (MkUexpr sTy (kvar Here)) (Map.map extendEnv env)
     e' <- check e sTy env'
     Just $ MkUexpr sTy (kfix sTy e')
-infer (RNil ty) _ = case Lambda.sty ty of
+infer (RNil Nothing) _ = Nothing -- can't infer unannotated nil
+infer (RNil (Just ty)) _ = case Lambda.sty ty of
   Lambda.SomeSTy s -> Just $ MkUexpr (Lambda.SList s) (knil s)
 infer (RCons e1 e2) env = do
   MkUexpr s2 e2' <- infer e2 env
@@ -230,10 +241,39 @@ inferArith op e1 e2 env = do
 
 -- | Check an expression against a known type (checking mode).
 check :: RawExpr -> Lambda.STy ty -> Map String (UKExpr v γ) -> Maybe (KExpr v γ ty)
-check (RLam x _ty e) (Lambda.SArr s1 s2) env = do
+check (RLam x mty e) (Lambda.SArr s1 s2) env = do
+  -- If annotated, verify the annotation matches the expected type
+  case mty of
+    Just ty -> case Lambda.sty ty of
+      Lambda.SomeSTy sTy -> case testEquality s1 sTy of
+        Just Refl -> pure ()
+        Nothing -> Nothing
+    Nothing -> pure ()
   e' <- check e s2 (Map.insert x (MkUexpr s1 (kvar Here)) (Map.map extendEnv env))
   pure $ klam s1 e'
 check (RLam _ _ _) _ _ = Nothing -- lambda against non-arrow type
+check (RFix x Nothing e) s env = do
+  let env' = Map.insert x (MkUexpr s (kvar Here)) (Map.map extendEnv env)
+  e' <- check e s env'
+  pure $ kfix s e'
+check (RNil Nothing) (Lambda.SList s) _env = Just $ knil s
+check (RNil Nothing) _ _ = Nothing
+check (RLet x Nothing e1 e2) s env = do
+  MkUexpr s1 e1' <- infer e1 env
+  let env' = Map.insert x (MkUexpr s1 (kvar Here)) (Map.map extendEnv env)
+  e2' <- check e2 s env'
+  Just $ kapp (klam s1 e2') e1'
+check (RLet x (Just ty) e1 e2) s env = case Lambda.sty ty of
+  Lambda.SomeSTy sTy -> do
+    e1' <- check e1 sTy env
+    let env' = Map.insert x (MkUexpr sTy (kvar Here)) (Map.map extendEnv env)
+    e2' <- check e2 s env'
+    Just $ kapp (klam sTy e2') e1'
+check (RCons e1 e2) (Lambda.SList s) env = do
+  e1' <- check e1 s env
+  e2' <- check e2 (Lambda.SList s) env
+  Just $ kcons e1' e2'
+check (RCons _ _) _ _ = Nothing
 check e s env = checkInferable e s env -- fallback: infer then compare
 
 checkInferable :: RawExpr -> Lambda.STy ty -> Map String (UKExpr v γ) -> Maybe (KExpr v γ ty)
@@ -332,27 +372,35 @@ pExpr =
 pLam :: Parser RawExpr
 pLam = do
   _ <- symbol "\\" <|> symbol "λ"
-  (x, ty) <- parens $ (,) <$> identifier <*> (symbol ":" *> parseTy)
+  (x, ty) <-
+    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
+      <|> (,Nothing)
+      <$> identifier
   _ <- symbol "."
   RLam x ty <$> pExpr
 
 pFix :: Parser RawExpr
 pFix = do
   _ <- symbol "fix"
-  (x, ty) <- parens $ (,) <$> identifier <*> (symbol ":" *> parseTy)
+  (x, ty) <-
+    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
+      <|> (,Nothing)
+      <$> identifier
   _ <- symbol "."
   RFix x ty <$> pExpr
 
--- | @let (x : T) = e1 in e2@  desugars to  @(\\(x : T). e2) e1@
+-- | @let (x : T) = e1 in e2@ or @let x = e1 in e2@
 pLet :: Parser RawExpr
 pLet = do
   _ <- symbol "let"
-  (x, ty) <- parens $ (,) <$> identifier <*> (symbol ":" *> parseTy)
+  (x, ty) <-
+    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
+      <|> (,Nothing)
+      <$> identifier
   _ <- symbol "="
   e1 <- pExpr
   _ <- symbol "in"
-  e2 <- pExpr
-  pure $ RApp (RLam x ty e2) e1
+  RLet x ty e1 <$> pExpr
 
 pIfThenElse :: Parser RawExpr
 pIfThenElse = do
@@ -422,8 +470,8 @@ pAtom =
 pNil :: Parser RawExpr
 pNil = do
   _ <- symbol "nil"
-  _ <- symbol "@"
-  RNil <$> tyAtom
+  ty <- optional (symbol "@" *> tyAtom)
+  pure $ RNil ty
 
 -- | Parse a complete input (skip leading whitespace, expect EOF).
 parseModule :: Parser RawExpr
