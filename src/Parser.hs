@@ -305,7 +305,7 @@ braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
 reserved :: [String]
-reserved = ["Int", "Bool", "List", "fix", "nil", "case", "of", "ifzero", "iszero", "then", "else", "let", "in", "true", "false"]
+reserved = ["Int", "Bool", "List", "fix", "nil", "case", "of", "ifzero", "iszero", "then", "else", "let", "rec", "in", "true", "false"]
 
 identifier :: Parser String
 identifier = lexeme $ try $ do
@@ -390,9 +390,11 @@ pFix = do
   RFix x ty <$> pExpr
 
 -- | @let (x : T) = e1 in e2@ or @let x = e1 in e2@
+--   @let rec (x : T) = e1 in e2@ desugars to @let (x : T) = fix (x : T). e1 in e2@
 pLet :: Parser RawExpr
 pLet = do
   _ <- symbol "let"
+  rec <- option False (True <$ symbol "rec")
   (x, ty) <-
     parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
       <|> (,Nothing)
@@ -400,7 +402,8 @@ pLet = do
   _ <- symbol "="
   e1 <- pExpr
   _ <- symbol "in"
-  RLet x ty e1 <$> pExpr
+  let e1' = if rec then RFix x ty e1 else e1
+  RLet x ty e1' <$> pExpr
 
 pIfThenElse :: Parser RawExpr
 pIfThenElse = do
