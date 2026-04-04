@@ -369,23 +369,24 @@ pExpr =
       pCons
     ]
 
+-- | A binder: @(x : T)@ or just @x@ (unannoted).
+binder :: Parser (String, Maybe Lambda.Ty)
+binder =
+  parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
+    <|> (,Nothing)
+    <$> identifier
+
 pLam :: Parser RawExpr
 pLam = do
   _ <- symbol "\\" <|> symbol "λ"
-  (x, ty) <-
-    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
-      <|> (,Nothing)
-      <$> identifier
+  (x, ty) <- binder
   _ <- symbol "."
   RLam x ty <$> pExpr
 
 pFix :: Parser RawExpr
 pFix = do
   _ <- symbol "fix"
-  (x, ty) <-
-    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
-      <|> (,Nothing)
-      <$> identifier
+  (x, ty) <- binder
   _ <- symbol "."
   RFix x ty <$> pExpr
 
@@ -396,15 +397,12 @@ pLet :: Parser RawExpr
 pLet = do
   _ <- symbol "let"
   rec <- option False (True <$ symbol "rec")
-  (x, ty) <-
-    parens ((,) <$> identifier <*> optional (symbol ":" *> parseTy))
-      <|> (,Nothing)
-      <$> identifier
-  args <- many identifier
+  (x, ty) <- binder
+  args <- many binder
   _ <- symbol "="
   e1 <- pExpr
   _ <- symbol "in"
-  let e1' = foldr (\a b -> RLam a Nothing b) e1 args
+  let e1' = foldr (\(a, aty) b -> RLam a aty b) e1 args
   let e1'' = if rec then RFix x ty e1' else e1'
   RLet x ty e1'' <$> pExpr
 
