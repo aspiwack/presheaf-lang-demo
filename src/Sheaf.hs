@@ -38,6 +38,9 @@ import Presheaf
 -- The important feature of this presentation is that it avoids speaking about
 -- the pullback of a sieve, which is a very dependent-type-y notion, which
 -- wouldn't translate well into Haskell.
+--
+-- See also 'glueIfThenElse' for a more explicit description of sheaves (but
+-- specialised to our topology).
 class (Presheaf p) => Sheaf p where
   -- | This type has a hint of dependent type. A @forall c.@ followed by a single
   -- ton type at @c@ (here in the form of @'KnownCover' c@ because it's usually

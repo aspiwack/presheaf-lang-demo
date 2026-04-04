@@ -1,14 +1,14 @@
-Presheaf lang demo
-==================
+Sheaf lang demo
+===============
 
 This is a small demo I put together to play with the idea of interpreting
-a (normal, functional, programming) language in a presheaf over some other
+a (normal, functional, programming) language in a sheaf over some other
 category which defines “actual” computations.
 
 I may be iterating on the language a bit to explore variants. I'll make releases
 for the checkpoint which could be interesting references on their own.
 
-The presheaves extend the base category computations with all the things you
+The sheaves extend the base category computations with all the things you
 usually have in a language, however limited the base language is (even some
 flavour of dependent types potentially). Since this is just a demo, I just built
 a simply typed λ-calculus.
@@ -29,6 +29,31 @@ The silver lining is that this repository can also serve as a decently minimal
 example of how to use PHOAS, with a typechecker and an interpreter.
 
 ## Some notes
+
+### Sheaves vs presheaves
+
+A [previous
+iteration](https://github.com/aspiwack/presheaf-lang-demo/releases/tag/presheaves)
+of this repository interpreted the λ-calculus into presheaves. Presheaves are a
+little bit more direct than sheaves (also sheaves are much less documented in
+the context of programming languages, so it took me quite a lot of trial and
+error to get there, I learnt a lot).
+
+The problem is that presheaves _create_ all colimits. No matter how many
+colimits you have in your base category (in particular sums/coproducts), they
+won't be colimits in the category of presheaves. For a two-level programming
+language like ours, it means that all the control flow is entirely at the
+λ-calculus level and can't involve arithmetic types. A strict separation is
+kept.
+
+Quite concretely, in this version of the language we have a function `iszero ::
+Int -> Bool`. And we can branch on Booleans with `if b then … else …`. With
+presheaves this would simply be impossible: Booleans are evaluated at the
+arithmetic level, so they are still symbolic when we want to evaluate the `if`
+branch.
+
+With sheaves, however, the evaluator is going to postpone evaluating branches
+and compile them to `if` branches in the arithmetic level.
 
 ### PHOAS and binders
 
