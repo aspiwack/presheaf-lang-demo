@@ -281,7 +281,7 @@ infer (Located _pos (RCaseList scrut enil hd tl econs)) env = do
       Left $
         TcError
           (locOf scrut)
-          ("expected a list type in case scrutinee, but got " ++ showTy sScrut)
+          ("expected a List in case scrutinee, but got " ++ showTy sScrut)
           []
 infer (Located _pos (RIfThenElse e e1 e2)) env = do
   e' <- check e Lambda.SBool env
@@ -354,6 +354,18 @@ check (Located _pos (RCons e1 e2)) (Lambda.SList s) env = do
   Right $ kcons e1' e2'
 check (Located pos (RCons _ _)) s _ =
   Left $ TcError pos ("expected " ++ showTy s ++ ", but got a cons expression") []
+check (Located _pos (RCaseList scrut enil hd tl econs)) s env = do
+  MkUexpr sScrut scrut' <- infer scrut env
+  case sScrut of
+    Lambda.SList sElem -> do
+      enil' <- check enil s env
+      let env' =
+            Map.insert hd (MkUexpr sElem (kvar Here)) $
+              Map.insert tl (MkUexpr (Lambda.SList sElem) (kvar (There Here))) $
+                Map.map (extendEnv . extendEnv) env
+      econs' <- check econs s env'
+      Right $ kcaselist sElem s scrut' enil' econs'
+    _ -> Left $ TcError (locOf scrut) ("expected a List in case scrutinee, but got " ++ showTy sScrut) []
 check le s env = checkInferable le s env
 
 checkInferable :: Located RawExpr -> Lambda.STy ty -> Map String (UKExpr v γ) -> Either TcError (KExpr v γ ty)
