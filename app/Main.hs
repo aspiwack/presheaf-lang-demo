@@ -3,6 +3,7 @@
 module Main where
 
 import Arith qualified
+import Error.Diagnose
 import Parser (compileIntInt)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
@@ -17,9 +18,9 @@ main = do
         _ -> do
           putStrLn "Error: first argument must be an integer"
           exitFailure
-      case compileIntInt exprStr of
-        Left err -> do
-          putStrLn err
+      case compileIntInt "<input>" exprStr of
+        Left diag -> do
+          printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle diag
           exitFailure
         Right arithExpr ->
           case Arith.eval (Arith.VInt n) arithExpr of

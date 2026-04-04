@@ -3,6 +3,13 @@ resolver: lts-24.34
 packages:
 - .
 
+extra-deps:
+- diagnose-2.5.1
+
+allow-newer: true
+allow-newer-deps:
+- diagnose
+
 ## Ancilla
 
 # Deactivate Nix warning (since we don't use the Nix integration directly)

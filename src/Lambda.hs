@@ -61,6 +61,12 @@ instance TestEquality STy where
     Just Refl
   testEquality _ _ = Nothing
 
+demoteSTy :: STy ty -> Ty
+demoteSTy SInt = TInt
+demoteSTy SBool = TBool
+demoteSTy (SList s) = TList (demoteSTy s)
+demoteSTy (SArr s1 s2) = TArr (demoteSTy s1) (demoteSTy s2)
+
 class KnownTy (τ :: Ty) where
   tyRepr :: STy τ
 

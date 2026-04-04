@@ -27,6 +27,7 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , diagnose
     , megaparsec >=9.0
     , parser-combinators >=1.3
   default-language: GHC2021
@@ -41,6 +42,7 @@ executable presheaf-lang-demo
   build-depends:
       base >=4.7 && <5
     , containers
+    , diagnose
     , megaparsec >=9.0
     , parser-combinators >=1.3
     , presheaf-lang-demo
