@@ -1,12 +1,17 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 
 module Main where
 
 import Arith qualified
+import Data.Map qualified as Map
 import Error.Diagnose
-import Parser (compileIntInt)
+import Lambda qualified as Lambda
+import Parser
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
+import Text.Megaparsec
+import Typecheck
 
 main :: IO ()
 main = do
@@ -32,3 +37,23 @@ main = do
     _ -> do
       putStrLn "Usage: presheaf-lang-demo <number> '<expression>'"
       exitFailure
+
+---------------------------------------------------------------------------
+--
+-- Compilation pipeline
+--
+---------------------------------------------------------------------------
+
+-- | Parse a string as a Lambda expression, typecheck it against @Int -> Int@,
+-- and lower it to an arithmetic expression via the presheaf interpretation.
+compileIntInt :: FilePath -> String -> Either (Diagnostic String) (Arith.Expr 'Arith.TInt 'Arith.TInt)
+compileIntInt filename input = do
+  raw <- case parse parseModule filename input of
+    Left parseErr ->
+      Left $
+        addReport (addFile mempty filename input) $
+          Err Nothing (errorBundlePretty parseErr) [] []
+    Right r -> Right r
+  case check raw (Lambda.SArr Lambda.SInt Lambda.SInt) Map.empty of
+    Left tcErr -> Left $ tcErrorToDiagnostic filename input tcErr
+    Right kexpr -> Right $ Lambda.lower (kexpr id Empty)

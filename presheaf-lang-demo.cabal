@@ -19,6 +19,7 @@ library
       Parser
       Presheaf
       Sheaf
+      Typecheck
   other-modules:
       Paths_presheaf_lang_demo
   hs-source-dirs:
