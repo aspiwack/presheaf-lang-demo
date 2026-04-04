@@ -305,7 +305,7 @@ braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
 reserved :: [String]
-reserved = ["Int", "Bool", "List", "fix", "nil", "case", "of", "ifzero", "iszero", "then", "else", "let", "rec", "in", "true", "false"]
+reserved = ["Int", "Bool", "List", "fix", "nil", "case", "of", "if", "iszero", "then", "else", "let", "rec", "in", "true", "false"]
 
 identifier :: Parser String
 identifier = lexeme $ try $ do
@@ -350,7 +350,7 @@ tyAtom =
 -- @
 -- 42
 -- \\(x : Int). x + 1
--- fix (f : Int -> Int). \\(n : Int). ifzero n then 1 else n * f (n - 1)
+-- fix (f : Int -> Int). \\(n : Int). if iszero n then 1 else n * f (n - 1)
 -- nil \@Int
 -- 1 :: 2 :: nil \@Int
 -- case xs of { [] -> 0; h :: t -> h }
