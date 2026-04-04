@@ -1,0 +1,10 @@
+-- $ stack exec presheaf-lang-demo -- 5 "$(cat examples/fact.presh)"
+-- 120
+
+let rec (fact : Int -> Int) n =
+  if iszero n then
+    1
+  else
+    n * (fact (n-1))
+in
+fact

@@ -1,0 +1,40 @@
+-- $ stack exec presheaf-lang-demo -- 9 "$(cat examples/fib.presh)"
+-- 89
+
+let (hd : List Int -> Int) xs =
+  case xs of
+  { [] -> 0
+  ; x::xs -> x }
+in
+let (tl : List Int -> List Int) xs =
+  case xs of
+  { [] -> nil
+  ; x::xs -> xs }
+in
+let rec (drop : Int -> List Int -> List Int) n xs =
+  if iszero n then
+    xs
+  else
+    case xs of
+    { [] -> nil
+    ; x::xs -> drop (n-1) xs }
+in
+let rec (findAt : Int -> List Int -> Int) n xs =
+  hd (drop n xs)
+in
+let rec (zipWith : (Int -> Int -> Int) -> List Int -> List Int -> List Int) f xs ys =
+  case xs of
+  { [] -> nil
+  ; x::xs -> case ys of
+    { [] -> nil
+    ; y::ys -> f x y :: zipWith f xs ys } }
+in
+-- The frontend language inherits a lazy semantics from Haskell, so we can do this
+-- sort of infinite list shenanigans.
+let rec (fibs : List Int) =
+  1 :: 2 :: zipWith (\x. \y. x+y) fibs (tl fibs)
+in
+let (fib : Int -> Int) n =
+  findAt n fibs
+in
+fib
