@@ -163,3 +163,8 @@ don't need the more complex representation).
 
 [presheaf-hoas]: https://ieeexplore.ieee.org/document/782616
 [presheaf-hoas-author]: https://www.dcs.ed.ac.uk/home/mxh/lics99hoas.ps.gz
+
+## Acknowledgement
+
+Making sheaves work has been arduous. It's only been possible to get to this
+point with the help of James Haydon and Jean-Philippe Bernardy.
