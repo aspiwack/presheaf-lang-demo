@@ -37,7 +37,9 @@ data Expr (i :: Ty) (o :: Ty) where
 deriving instance Show (Expr i o)
 
 ---------------------------------------------------------------------------
+--
 -- Pretty-printing
+--
 ---------------------------------------------------------------------------
 
 -- | Pretty-print an expression with a maximum depth.
@@ -107,6 +109,12 @@ parensIf :: Bool -> Doc ann -> Doc ann
 parensIf True = parens
 parensIf False = id
 
+---------------------------------------------------------------------------
+--
+-- Categorical constructions
+--
+---------------------------------------------------------------------------
+
 -- Categorical composition of expressions
 compose :: Expr i j -> Expr j k -> Expr i k
 compose _e Unit = Unit
@@ -125,7 +133,20 @@ compose e1 (Snd e2) = Snd (compose e1 e2)
 compose e1 (Pair e2 e3) = Pair (compose e1 e2) (compose e1 e3)
 compose e1 Id = e1
 
+-- Functorial behaviour of pairs
+tensor :: Expr i j -> Expr k l -> Expr ('TProd i k) ('TProd j l)
+tensor f g =
+  Pair
+    (fstp `compose` f)
+    (sndp `compose` g)
+
 -- Some categorical arrows
+fstp :: Expr ('TProd i j) i
+fstp = Fst Id
+
+sndp :: Expr ('TProd i j) j
+sndp = Snd Id
+
 neg :: Expr 'TInt 'TInt
 neg = Neg Id
 
@@ -143,6 +164,12 @@ cdiv = Div (Fst Id) (Snd Id)
 
 cocone :: Expr 'TUnit a -> Expr 'TUnit a -> Expr 'TBool a
 cocone t f = IfThenElse Id (Unit `compose` t) (Unit `compose` f)
+
+---------------------------------------------------------------------------
+--
+-- Evaluator
+--
+---------------------------------------------------------------------------
 
 -- | Values indexed by their type
 data Val (t :: Ty) where

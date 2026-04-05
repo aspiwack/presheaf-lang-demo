@@ -208,15 +208,18 @@ interp (Fix _s f) =
    in go
 interp (Nil _s) = ShNil
 interp (Cons e1 e2) = ShCons (interp e1) (interp e2)
-interp (CaseList scrut enil econs) =
-  go (interp scrut)
+interp (CaseList @σ scrut enil econs) =
+  go Arith.Id (interp scrut)
   where
-    go (ShNil) = interp enil
-    go (ShCons h t) = interp (econs id (MkFiber h) (MkFiber t))
-    go (ListOracle k o) =
+    go :: forall j. (Arith.Expr j i) -> ShList (PreshOf σ) j -> PreshOf ty j
+    go f (ShNil) =
+      case presheafOf (tyRepr @ty) of
+        Dict -> pb f $ interp enil
+    go f (ShCons h t) = interp (econs (pbFiber f) (MkFiber h) (MkFiber t))
+    go f (ListOracle k o) =
       case sheafOf (tyRepr @ty) of
         Dict ->
-          glueOracle k $ \c -> go (o c)
+          glueOracle k $ \c -> go (Arith.sndp `Arith.compose` f) ((o c))
 interp BTrue = MkY Arith.BTrue
 interp BFalse = MkY Arith.BFalse
 interp (IsZero e) =
