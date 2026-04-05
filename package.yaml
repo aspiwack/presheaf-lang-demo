@@ -2,6 +2,8 @@ name: sheaf-lang-demo
 version: 0.1.0.0
 author: "Arnaud Spiwack"
 
+spec-version: 0.39.0
+
 language: GHC2021
 
 dependencies:

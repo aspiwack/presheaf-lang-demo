@@ -20,8 +20,6 @@ library
       Presheaf
       Sheaf
       Typecheck
-  other-modules:
-      Paths_sheaf_lang_demo
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
@@ -37,8 +35,6 @@ library
 
 executable sheaf-lang-demo
   main-is: Main.hs
-  other-modules:
-      Paths_sheaf_lang_demo
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
