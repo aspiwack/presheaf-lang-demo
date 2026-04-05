@@ -33,7 +33,7 @@ example of how to use PHOAS, with a typechecker and an interpreter.
 ### Sheaves vs presheaves
 
 A [previous
-iteration](https://github.com/aspiwack/presheaf-lang-demo/releases/tag/presheaves)
+iteration](https://github.com/aspiwack/sheaf-lang-demo/releases/tag/presheaves)
 of this repository interpreted the λ-calculus into presheaves. Presheaves are a
 little bit more direct than sheaves (also sheaves are much less documented in
 the context of programming languages, so it took me quite a lot of trial and

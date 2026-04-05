@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           presheaf-lang-demo
+name:           sheaf-lang-demo
 version:        0.1.0.0
 author:         Arnaud Spiwack
 maintainer:     Arnaud Spiwack
@@ -21,7 +21,7 @@ library
       Sheaf
       Typecheck
   other-modules:
-      Paths_presheaf_lang_demo
+      Paths_sheaf_lang_demo
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
@@ -35,10 +35,10 @@ library
     , prettyprinter
   default-language: GHC2021
 
-executable presheaf-lang-demo
+executable sheaf-lang-demo
   main-is: Main.hs
   other-modules:
-      Paths_presheaf_lang_demo
+      Paths_sheaf_lang_demo
   hs-source-dirs:
       app
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
@@ -49,6 +49,6 @@ executable presheaf-lang-demo
     , megaparsec >=9.0
     , optparse-applicative
     , parser-combinators >=1.3
-    , presheaf-lang-demo
     , prettyprinter
+    , sheaf-lang-demo
   default-language: GHC2021

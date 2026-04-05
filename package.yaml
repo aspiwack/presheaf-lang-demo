@@ -1,4 +1,4 @@
-name: presheaf-lang-demo
+name: sheaf-lang-demo
 version: 0.1.0.0
 author: "Arnaud Spiwack"
 
@@ -17,10 +17,10 @@ library:
   source-dirs: src
 
 executables:
-  presheaf-lang-demo:
+  sheaf-lang-demo:
     main: Main.hs
     source-dirs: app
     dependencies:
-    - presheaf-lang-demo
+    - sheaf-lang-demo
 
 ghc-options: "-Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances"

@@ -1,4 +1,4 @@
--- $ stack exec presheaf-lang-demo -- run 9 -- "$(cat examples/fib.presh)"
+-- $ stack exec sheaf-lang-demo -- run 9 -- "$(cat examples/fib.presh)"
 -- 89
 
 let (hd : List Int -> Int) xs =
