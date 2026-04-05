@@ -55,6 +55,18 @@ branch.
 With sheaves, however, the evaluator is going to postpone evaluating branches
 and compile them to `if` branches in the arithmetic level.
 
+#### Weaknesses
+
+Even though the frontend language and the base category share control flow, I
+don't know how to make fixed points (or any sort of looping behaviour) in the
+frontend language compile to fixed point (or any sort of looping behaviour) in
+the base category.
+
+Effectively this means that fixed points generate infinite terms of the base
+category. Using laziness, this isn't a problem. These infinite terms can still
+be evaluated. We just have to be careful when printing to only print up to a
+certain depth.
+
 ### PHOAS and binders
 
 I have found that it's better to represent binders as
