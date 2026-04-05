@@ -35,21 +35,21 @@ The executable has two subcommands:
 ### `run` -- evaluate an expression
 
 ```
-stack exec presheaf-lang-demo -- run N EXPR
+stack exec sheaf-lang-demo -- run N EXPR
 ```
 
 Compiles `EXPR` (which must have type `Int -> Int`), applies it to `N`, and
 prints the result.
 
 ```
-$ stack exec presheaf-lang-demo -- run 5 '\(x : Int). x * x + 1'
+$ stack exec sheaf-lang-demo -- run 5 '\(x : Int). x * x + 1'
 26
 ```
 
 ### `show` -- display the compiled arithmetic expression
 
 ```
-stack exec presheaf-lang-demo -- show [-d DEPTH] [-w WIDTH] EXPR
+stack exec sheaf-lang-demo -- show [-d DEPTH] [-w WIDTH] EXPR
 ```
 
 Compiles `EXPR` and pretty-prints the lowered arithmetic expression instead of
@@ -59,10 +59,10 @@ at depth `DEPTH` (default 10). `WIDTH` controls the line width for formatting
 (default 80).
 
 ```
-$ stack exec presheaf-lang-demo -- show '\(x : Int). if iszero x then 0 else x * x'
+$ stack exec sheaf-lang-demo -- show '\(x : Int). if iszero x then 0 else x * x'
 if iszero id then 0 else id * id
 
-$ stack exec presheaf-lang-demo -- show -w 30 '\(x : Int). if iszero x then 0 else x * x'
+$ stack exec sheaf-lang-demo -- show -w 30 '\(x : Int). if iszero x then 0 else x * x'
 if iszero id
   then 0
   else id * id
