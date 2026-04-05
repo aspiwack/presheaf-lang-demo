@@ -115,21 +115,23 @@ parensIf False = id
 --
 ---------------------------------------------------------------------------
 
--- Categorical composition of expressions
+-- | Categorical composition of expressions
+--
+-- Does some peephole optimisation for the output to be more readable.
 compose :: Expr i j -> Expr j k -> Expr i k
 compose _e Unit = Unit
 compose _e (Lit n) = Lit n
-compose e1 (Neg e2) = Neg (compose e1 e2)
-compose e1 (Add e2 e3) = Add (compose e1 e2) (compose e1 e3)
-compose e1 (Sub e2 e3) = Sub (compose e1 e2) (compose e1 e3)
-compose e1 (Mul e2 e3) = Mul (compose e1 e2) (compose e1 e3)
-compose e1 (Div e2 e3) = Div (compose e1 e2) (compose e1 e3)
+compose e1 (Neg e2) = mkNeg (compose e1 e2)
+compose e1 (Add e2 e3) = mkAdd (compose e1 e2) (compose e1 e3)
+compose e1 (Sub e2 e3) = mkSub (compose e1 e2) (compose e1 e3)
+compose e1 (Mul e2 e3) = mkMul (compose e1 e2) (compose e1 e3)
+compose e1 (Div e2 e3) = mkDiv (compose e1 e2) (compose e1 e3)
 compose _e BTrue = BTrue
 compose _e BFalse = BFalse
 compose e1 (IsZero e2) = IsZero (compose e1 e2)
 compose e1 (IfThenElse c t f) = IfThenElse (compose e1 c) (compose e1 t) (compose e1 f)
-compose e1 (Fst e2) = Fst (compose e1 e2)
-compose e1 (Snd e2) = Snd (compose e1 e2)
+compose e1 (Fst e2) = mkFst (compose e1 e2)
+compose e1 (Snd e2) = mkSnd (compose e1 e2)
 compose e1 (Pair e2 e3) = Pair (compose e1 e2) (compose e1 e3)
 compose e1 Id = e1
 
@@ -164,6 +166,40 @@ cdiv = Div (Fst Id) (Snd Id)
 
 cocone :: Expr 'TUnit a -> Expr 'TUnit a -> Expr 'TBool a
 cocone t f = IfThenElse Id (Unit `compose` t) (Unit `compose` f)
+
+---------------------------------------------------------------------------
+--
+-- Smart constructors
+--
+---------------------------------------------------------------------------
+
+mkFst :: Expr i (TProd a b) -> Expr i a
+mkFst (Pair e _) = e
+mkFst e = Fst e
+
+mkSnd :: Expr i (TProd a b) -> Expr i b
+mkSnd (Pair _ e) = e
+mkSnd e = Snd e
+
+mkAdd :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
+mkAdd (Lit n1) (Lit n2) = Lit (n1 + n2)
+mkAdd e1 e2 = Add e1 e2
+
+mkSub :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
+mkSub (Lit n1) (Lit n2) = Lit (n1 - n2)
+mkSub e1 e2 = Sub e1 e2
+
+mkMul :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
+mkMul (Lit n1) (Lit n2) = Lit (n1 * n2)
+mkMul e1 e2 = Mul e1 e2
+
+mkDiv :: Expr i 'TInt -> Expr i 'TInt -> Expr i 'TInt
+mkDiv (Lit n1) (Lit n2) | n2 /= 0 = Lit (n1 `div` n2)
+mkDiv e1 e2 = Div e1 e2
+
+mkNeg :: Expr i 'TInt -> Expr i 'TInt
+mkNeg (Lit n) = Lit (negate n)
+mkNeg e = Neg e
 
 ---------------------------------------------------------------------------
 --
