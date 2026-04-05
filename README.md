@@ -28,6 +28,67 @@ anyway, so I didn't really avoid dealing with type level lists).
 The silver lining is that this repository can also serve as a decently minimal
 example of how to use PHOAS, with a typechecker and an interpreter.
 
+## How to play around
+
+The executable has two subcommands:
+
+### `run` -- evaluate an expression
+
+```
+stack exec presheaf-lang-demo -- run N EXPR
+```
+
+Compiles `EXPR` (which must have type `Int -> Int`), applies it to `N`, and
+prints the result.
+
+```
+$ stack exec presheaf-lang-demo -- run 5 '\(x : Int). x * x + 1'
+26
+```
+
+### `show` -- display the compiled arithmetic expression
+
+```
+stack exec presheaf-lang-demo -- show [-d DEPTH] [-w WIDTH] EXPR
+```
+
+Compiles `EXPR` and pretty-prints the lowered arithmetic expression instead of
+evaluating it. This is useful to see what the sheaf interpretation produces.
+Because fixed points generate infinite arithmetic terms, the output is truncated
+at depth `DEPTH` (default 10). `WIDTH` controls the line width for formatting
+(default 80).
+
+```
+$ stack exec presheaf-lang-demo -- show '\(x : Int). if iszero x then 0 else x * x'
+if iszero id then 0 else id * id
+
+$ stack exec presheaf-lang-demo -- show -w 30 '\(x : Int). if iszero x then 0 else x * x'
+if iszero id
+  then 0
+  else id * id
+```
+
+### Language overview
+
+The input language is a simply typed lambda calculus with integers, booleans, and
+lists. Some examples:
+
+```
+\(x : Int). x + 1
+\(x : Int). if iszero x then 0 else x * x
+let (f : Int -> Int) (x : Int) = x * 2 in f 3
+let rec (f : Int -> Int) (n : Int) = if iszero n then 1 else n * f (n - 1) in f
+```
+
+Type annotations are optional when the type can be inferred from context:
+
+```
+\x. x + 1
+let f x = x * 2 in f 3
+```
+
+See also the `examples/` directory.
+
 ## Some notes
 
 ### Sheaves vs presheaves
