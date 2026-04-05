@@ -6,6 +6,8 @@
 
 module Arith where
 
+import Prettyprinter
+
 -- | Types in the arithmetic language
 data Ty
   = TInt
@@ -33,6 +35,77 @@ data Expr (i :: Ty) (o :: Ty) where
   Unit :: Expr i 'TUnit
 
 deriving instance Show (Expr i o)
+
+---------------------------------------------------------------------------
+-- Pretty-printing
+---------------------------------------------------------------------------
+
+-- | Pretty-print an expression with a maximum depth.
+-- Subexpressions beyond the depth limit are replaced with @…@.
+prettyExprDepth :: Int -> Expr i o -> Doc ann
+prettyExprDepth maxDepth = go 0 maxDepth
+  where
+    go :: Int -> Int -> Expr i o -> Doc ann
+    go _ _ (Lit n) = pretty n
+    go _ _ Id = kw "id"
+    go _ _ BTrue = kw "true"
+    go _ _ BFalse = kw "false"
+    go _ _ Unit = kw "()"
+    go _ 0 _ = pretty "…"
+    go p d (Neg e) = unary p d (kw "negate") e
+    go p d (Add e1 e2) = binOp p d 1 (kw "+") e1 e2
+    go p d (Sub e1 e2) = binOp p d 1 (kw "-") e1 e2
+    go p d (Mul e1 e2) = binOp p d 2 (kw "*") e1 e2
+    go p d (Div e1 e2) = binOp p d 2 (kw "/") e1 e2
+    go p d (IsZero e) = unary p d (kw "iszero") e
+    go p d (IfThenElse c t f) =
+      parensIf (p > 0) $
+        group $
+          nest 2 $
+            sep
+              [ kw "if" <+> go 0 d' c,
+                kw "then" <+> go 0 d' t,
+                kw "else" <+> go 0 d' f
+              ]
+      where
+        d' = d - 1
+    go p d (Pair e1 e2) =
+      parensIf (p > 0) $
+        group $
+          nest 2 $
+            sep
+              [ go 0 (d - 1) e1 <> kw ",",
+                go 0 (d - 1) e2
+              ]
+    go p d (Fst e) = unary p d (kw "fst") e
+    go p d (Snd e) = unary p d (kw "snd") e
+
+    binOp p d prec op e1 e2 =
+      parensIf (p > prec) $
+        group $
+          nest 2 $
+            sep
+              [ go prec d' e1 <+> op,
+                go (prec + 1) d' e2
+              ]
+      where
+        d' = d - 1
+
+    unary p d name e =
+      parensIf (p > 4) $
+        group $
+          nest 2 $
+            sep
+              [ name,
+                go 5 (d - 1) e
+              ]
+
+kw :: String -> Doc ann
+kw = pretty
+
+parensIf :: Bool -> Doc ann -> Doc ann
+parensIf True = parens
+parensIf False = id
 
 -- Categorical composition of expressions
 compose :: Expr i j -> Expr j k -> Expr i k

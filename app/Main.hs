@@ -10,6 +10,8 @@ import Error.Diagnose
 import Lambda qualified as Lambda
 import Options.Applicative
 import Parser
+import Prettyprinter (LayoutOptions (..), PageWidth (..), layoutPretty)
+import Prettyprinter.Render.Text (renderIO)
 import System.Exit (exitFailure)
 import Text.Megaparsec (errorBundlePretty, parse)
 import Typecheck
@@ -29,14 +31,20 @@ commandParser =
 commandP :: Options.Applicative.Parser (IO ())
 commandP =
   subparser $
-    command "run" $
-      info (runP <**> helper) $
-        progDesc "Compile and run an expression of type Int -> Int"
+    command "run" (info (runP <**> helper) $ progDesc "Compile and run an expression of type Int -> Int")
+      <> command "show" (info (showP <**> helper) $ progDesc "Compile an expression of type Int -> Int and print the lowered arithmetic expression")
 
 runP :: Options.Applicative.Parser (IO ())
 runP =
   runCommand
     <$> argument auto (metavar "N" <> help "Input integer")
+    <*> argument str (metavar "EXPR" <> help "Expression of type Int -> Int")
+
+showP :: Options.Applicative.Parser (IO ())
+showP =
+  showCommand
+    <$> option auto (long "depth" <> short 'd' <> metavar "N" <> value 10 <> help "Maximum pretty-printing depth (default: 10)")
+    <*> option auto (long "width" <> short 'w' <> metavar "COLS" <> value 80 <> help "Maximum line width (default: 80)")
     <*> argument str (metavar "EXPR" <> help "Expression of type Int -> Int")
 
 ---------------------------------------------------------------------------
@@ -48,6 +56,17 @@ runP =
 main :: IO ()
 main = do
   join $ execParser commandParser
+
+showCommand :: Int -> Int -> String -> IO ()
+showCommand maxDepth width exprStr =
+  case compileIntInt "<input>" exprStr of
+    Left diag -> do
+      printDiagnostic stderr WithUnicode (TabSize 4) defaultStyle diag
+      exitFailure
+    Right arithExpr -> do
+      let opts = LayoutOptions (AvailablePerLine width 1.0)
+      renderIO stdout (layoutPretty opts (Arith.prettyExprDepth maxDepth arithExpr))
+      putStrLn ""
 
 runCommand :: Int -> String -> IO ()
 runCommand n exprStr =

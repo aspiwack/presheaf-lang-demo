@@ -32,6 +32,7 @@ library
     , megaparsec >=9.0
     , optparse-applicative
     , parser-combinators >=1.3
+    , prettyprinter
   default-language: GHC2021
 
 executable presheaf-lang-demo
@@ -49,4 +50,5 @@ executable presheaf-lang-demo
     , optparse-applicative
     , parser-combinators >=1.3
     , presheaf-lang-demo
+    , prettyprinter
   default-language: GHC2021
