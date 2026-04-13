@@ -22,7 +22,7 @@ library
       Typecheck
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -frefinement-level-hole-fits=1
   build-depends:
       base >=4.7 && <5
     , containers
@@ -37,7 +37,7 @@ executable sheaf-lang-demo
   main-is: Main.hs
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -frefinement-level-hole-fits=1
   build-depends:
       base >=4.7 && <5
     , containers

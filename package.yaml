@@ -25,4 +25,4 @@ executables:
     dependencies:
     - sheaf-lang-demo
 
-ghc-options: "-Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances"
+ghc-options: "-Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wnoncanonical-monad-instances -frefinement-level-hole-fits=1"
